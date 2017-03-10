@@ -38,6 +38,52 @@ elif [ "x$1" = "xsync-shared-roles" ]; then
     echo "Syncing shared roles ... "
     /opt/scalr-server/embedded/bin/php /opt/scalr-server/embedded/scalr/app/tools/sync_shared_roles.php
     echo ""
+
+elif [ "x$1" = "xagent-repo" ]; then
+
+    if [ "x$2" = "xstatus" ]; then
+
+        while read line; do
+
+            if [ -d "/opt/scalr-server/var/lib/repos/$line" ]; then
+                echo "$line (local)"
+            else
+                echo "$line"
+            fi
+
+        done < <(/opt/scalr-server/embedded/bin/curl -s http://snapshot.repo.scalr.net/scalarizr/all/ | grep -o '<a href=['"'"'"][^"'"'"']*['"'"'"]' | sed -e 's/^<a href=["'"'"']//' -e 's/["'"'"']$//' | sed -n '1!p' | sed 's/\///g')
+
+    elif [ "x$2" = "xpull" ]; then
+        if [ "x$3" = "x" ]; then
+            echo "Please specify remote version to pull. Use 'scalr-server-manage agent-repo status' to list available versions."
+            exit 1
+        fi
+
+        /opt/scalr-server/embedded/bin/wget -r -nH -np --cut-dirs=2 --reject html -P /opt/scalr-server/var/lib/repos/ http://snapshot.repo.scalr.net/scalarizr/all/$3/
+
+    elif [ "x$2" = "xlink" ]; then
+        if [ "x$3" = "x" ] || [ "x$4" = "x" ]; then
+            echo "Please specify local repo name and local version to link to. Use 'scalr-server-manage agent-repo status' to list available versions."
+            exit 1
+        fi
+
+        if [ ! -d "/opt/scalr-server/var/lib/repos/$4" ]; then
+            echo "Specified version does not exist locally. Please pull the needed version before linking."
+            exit 1
+        fi
+
+        ln -s /opt/scalr-server/var/lib/repos/$4/apt-plain /opt/scalr-server/var/lib/repos/current/apt-plain/$3
+        ln -s /opt/scalr-server/var/lib/repos/$4/rpm /opt/scalr-server/var/lib/repos/current/rpm/$3
+        ln -s /opt/scalr-server/var/lib/repos/$4/win /opt/scalr-server/var/lib/repos/current/win/$3
+
+        echo "Repo '$3' is now linked to version $4"
+
+    else
+        echo 'scalr-server-manage agent-repo status                            - Shows available remote and local repos'
+        echo 'scalr-server-manage agent-repo pull %version%                    - Downloads specified remote repo'
+        echo 'scalr-server-manage agent-repo link %local_name% %local_version% - Links specified local repo name to existing local version'
+    fi
+
 else
     /opt/scalr-server/embedded/bin/supervisorctl \
     -c "$conf" \
